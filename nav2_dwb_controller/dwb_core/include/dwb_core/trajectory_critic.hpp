@@ -45,7 +45,8 @@
 #include "nav_2d_msgs/msg/twist2_d.hpp"
 #include "nav_2d_msgs/msg/path2_d.hpp"
 #include "dwb_msgs/msg/trajectory2_d.hpp"
-#include "sensor_msgs/msg/point_cloud.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 
 namespace dwb_core
@@ -166,7 +167,7 @@ public:
    *
    * @param pc PointCloud to add channels to
    */
-  virtual void addCriticVisualization(sensor_msgs::msg::PointCloud &) {}
+  virtual void addCriticVisualization(sensor_msgs::msg::PointCloud2 &) {}
 
   std::string getName()
   {

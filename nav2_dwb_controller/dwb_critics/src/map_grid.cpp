@@ -164,23 +164,34 @@ double MapGridCritic::scorePose(const geometry_msgs::msg::Pose2D & pose)
   return getScore(cell_x, cell_y);
 }
 
-void MapGridCritic::addCriticVisualization(sensor_msgs::msg::PointCloud & pc)
+void MapGridCritic::addCriticVisualization(sensor_msgs::msg::PointCloud2 & pc)
 {
-  sensor_msgs::msg::ChannelFloat32 grid_scores;
-  grid_scores.name = name_;
+  sensor_msgs::msg::PointField scores_field;
+  scores_field.name = name_;
+  scores_field.offset = pc.fields.back().offset + sizeof(float);
+  scores_field.datatype = sensor_msgs::PointField::FLOAT32;
+  scores_field.count = 1;
+  pc.fields.push_back(scores_field);
 
-  nav2_costmap_2d::Costmap2D * costmap = costmap_ros_->getCostmap();
+  pc.point_step += sizeof(float);
+  pc.row_step = pc.point_step * pc.width;
+
+  std::vector<unsigned char> data = pc.data;
+  pc.data.resize(pc.height * pc.width * pc.point_step);
+  for (size_t cp = 0; cp < pc.height * pc.width; ++cp) {
+    memcpy(&pc.data[cp * pc.point_step], &data[cp * (pc.point_step - sizeof(float))], pc.point_step - sizeof(float));
+  }
+
+  nav2_costmap_2d::Costmap2D *costmap = costmap_ros_->getCostmap();
   unsigned int size_x = costmap->getSizeInCellsX();
   unsigned int size_y = costmap->getSizeInCellsY();
-  grid_scores.values.resize(size_x * size_y);
-  unsigned int i = 0;
+  sensor_msgs::PointCloud2Iterator<float> iter_pc(pc, scores_field.name);
   for (unsigned int cy = 0; cy < size_y; cy++) {
     for (unsigned int cx = 0; cx < size_x; cx++) {
-      grid_scores.values[i] = getScore(cx, cy);
-      i++;
+      *iter_pc = getScore(cx, cy);
+      iter_pc++;
     }
   }
-  pc.channels.push_back(grid_scores);
 }
 
 }  // namespace dwb_critics
