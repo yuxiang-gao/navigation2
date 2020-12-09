@@ -43,6 +43,7 @@
 #include "nav_2d_utils/conversions.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 
@@ -105,7 +106,7 @@ DWBPublisher::on_configure()
   transformed_pub_ = node->create_publisher<nav_msgs::msg::Path>("transformed_global_plan", 1);
   local_pub_ = node->create_publisher<nav_msgs::msg::Path>("local_plan", 1);
   marker_pub_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("marker", 1);
-  cost_grid_pc_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud>("cost_cloud", 1);
+  cost_grid_pc_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("cost_cloud", 1);
 
   double marker_lifetime = 0.0;
   node->get_parameter(plugin_name_ + ".marker_lifetime", marker_lifetime);
@@ -256,46 +257,50 @@ DWBPublisher::publishCostGrid(
 
   if (!publish_cost_grid_pc_) {return;}
 
-  auto cost_grid_pc = std::make_unique<sensor_msgs::msg::PointCloud>();
+  auto cost_grid_pc = std::make_unique<sensor_msgs::msg::PointCloud2>();
   cost_grid_pc->header.frame_id = costmap_ros->getGlobalFrameID();
   cost_grid_pc->header.stamp = clock_->now();
-
-  nav2_costmap_2d::Costmap2D * costmap = costmap_ros->getCostmap();
+  cost_grid_pc_->height = 1;
+ 
+  nav2_costmap_2d::Costmap2D *costmap = costmap_ros->getCostmap();
   double x_coord, y_coord;
   unsigned int size_x = costmap->getSizeInCellsX();
   unsigned int size_y = costmap->getSizeInCellsY();
-  cost_grid_pc->points.resize(size_x * size_y);
-  unsigned int i = 0;
+  cost_grid_pc_->width = size_x * size_y; 
+  
+  sensor_msgs::PointCloud2Modifier modifier(*cost_grid_pc_);
+  modifier.setPointCloud2Fields(3, "x", 1, sensor_msgs::PointField::FLOAT64,
+                                "y", 1, sensor_msgs::PointField::FLOAT64,
+                                "total_cost", 1, sensor_msgs::PointField::FLOAT64);
+
+  sensor_msgs::PointCloud2Iterator<float> iter_x(*cost_grid_pc, 'x');
+  sensor_msgs::PointCloud2Iterator<float> iter_y(*cost_grid_pc, 'y');
+
   for (unsigned int cy = 0; cy < size_y; cy++) {
     for (unsigned int cx = 0; cx < size_x; cx++) {
       costmap->mapToWorld(cx, cy, x_coord, y_coord);
-      cost_grid_pc->points[i].x = x_coord;
-      cost_grid_pc->points[i].y = y_coord;
-      i++;
+      *iter_x = x_coord;
+      *iter_y = y_coord;
+      iter_x++;
+      iter_y++;
     }
   }
 
-  sensor_msgs::msg::ChannelFloat32 totals;
-  totals.name = "total_cost";
-  totals.values.resize(size_x * size_y, 0.0);
-
   for (TrajectoryCritic::Ptr critic : critics) {
-    unsigned int channel_index = cost_grid_pc->channels.size();
+    unsigned int field_index = cost_grid_pc->fields.size();
     critic->addCriticVisualization(*cost_grid_pc);
-    if (channel_index == cost_grid_pc->channels.size()) {
-      // No channels were added, so skip to next critic
+    if (field_index == cost_grid_pc->fields.size()) {
+      // No fields were added, so skip to next critic
       continue;
     }
     double scale = critic->getScale();
-    for (i = 0; i < size_x * size_y; i++) {
-      totals.values[i] += cost_grid_pc->channels[channel_index].values[i] * scale;
+    sensor_msgs::PointCloud2Iterator<float> iter_totals(*cost_grid_pc, "total_cost");
+    sensor_msgs::PointCloud2Iterator<float> iter_critic(*cost_grid_pc, cost_grid_pc_->fields.back()ks.name);
+    for (i = 0; i < size_x * size_y; i++, iter_totals++, iter_critic++) {
+      *iter_totals += *iter_critic * scale;
     }
   }
-  cost_grid_pc->channels.push_back(totals);
 
-  // TODO(crdelsey): convert pc to pc2
-  // sensor_msgs::msg::PointCloud2 cost_grid_pc2;
-  // convertPointCloudToPointCloud2(cost_grid_pc, cost_grid_pc2);
   cost_grid_pc_pub_->publish(std::move(cost_grid_pc));
 }
 

@@ -45,6 +45,7 @@
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "builtin_interfaces/msg/duration.hpp"
@@ -124,7 +125,7 @@ protected:
   std::shared_ptr<LifecyclePublisher<nav_msgs::msg::Path>> transformed_pub_;
   std::shared_ptr<LifecyclePublisher<nav_msgs::msg::Path>> local_pub_;
   std::shared_ptr<LifecyclePublisher<visualization_msgs::msg::MarkerArray>> marker_pub_;
-  std::shared_ptr<LifecyclePublisher<sensor_msgs::msg::PointCloud>> cost_grid_pc_pub_;
+  std::shared_ptr<LifecyclePublisher<sensor_msgs::msg::PointCloud2>> cost_grid_pc_pub_;
 
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
   rclcpp::Clock::SharedPtr clock_;
